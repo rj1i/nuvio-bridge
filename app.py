@@ -1,47 +1,54 @@
-from flask import Flask, jsonify
-import feedparser
-from bs4 import BeautifulSoup
-import requests
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)  # للسماح بالتواصل من أي تطبيق مثل Nuvio
 
-SOURCES = {
-    "qesset": "https://qesset.net/feed/",
-    "krmizi": "https://krmizi.onl/feed/"
-}
-
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://qesset.net/"
-}
-
+# صفحة تعريف الإضافة الأساسية (Manifest)
 @app.route('/')
-def home():
-    return jsonify({"message": "Server is running successfully!"})
+@app.route('/manifest.json')
+def manifest():
+    return jsonify({
+        "id": "com.nuvio.arabic.bridges",
+        "version": "1.0.0",
+        "name": "المسلسلات العربية والتركية",
+        "description": "جلب حلقات قصة عشق وقرمزي",
+        "resources": ["catalog", "stream"],
+        "types": ["series"],
+        "idPrefixes": ["qesset_", "krmizi_"],
+        "catalogs": [
+            {
+                "type": "series",
+                "id": "qesset_catalog",
+                "name": "قصة عشق"
+            },
+            {
+                "type": "series",
+                "id": "krmizi_catalog",
+                "name": "قرمزي"
+            }
+        ]
+    })
 
-@app.route('/episodes/<source>')
-def get_episodes(source):
-    if source not in SOURCES:
-        return jsonify({"error": "المصدر غير موجود"}), 404
-        
-    feed = feedparser.parse(SOURCES[source])
-    data = []
-    
-    for entry in feed.entries[:10]:
-        try:
-            res = requests.get(entry.link, headers=HEADERS, timeout=5)
-            soup = BeautifulSoup(res.text, 'html.parser')
-            iframes = [i.get('src') for i in soup.find_all('iframe') if i.get('src')]
-            
-            data.append({
-                "title": entry.title,
-                "url": entry.link,
-                "streams": iframes
-            })
-        except:
-            continue
-            
-    return jsonify({"status": "ok", "source": source, "episodes": data})
+@app.route('/episodes/qesset')
+def qesset():
+    return jsonify({
+        "status": "success",
+        "source": "qesset",
+        "data": [
+            {"title": "قصة عشق - تجربة", "url": "https://example.com/video.mp4"}
+        ]
+    })
+
+@app.route('/episodes/krmizi')
+def krmizi():
+    return jsonify({
+        "status": "success",
+        "source": "krmizi",
+        "data": [
+            {"title": "قرمزي - تجربة", "url": "https://example.com/video.mp4"}
+        ]
+    })
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=10000)
