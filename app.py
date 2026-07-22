@@ -1,48 +1,54 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, Response
 from flask_cors import CORS
+import json
 
 app = Flask(__name__)
 CORS(app)
 
+# إجبار Flask على عدم تشفير الأحرف العربية إلى Unicode
+app.config['JSON_AS_ASCII'] = False
+
 @app.route('/')
 @app.route('/manifest.json')
 def manifest():
-    return jsonify({
+    data = {
         "id": "com.arabic.servers.bridge",
         "version": "1.0.0",
         "name": "السيرفرات العربية (قصة عشق & قرمزي)",
         "description": "جلب سيرفرات المشاهدة للمسلسلات التركية والعربية",
-        "resources": ["stream"],  # الاعتماد فقط على نظام الـ Stream للمسلسلات الموجودة في التطبيق
+        "resources": ["stream"],
         "types": ["series", "movie"],
-        "idPrefixes": ["tt"]  # الاستجابة لمعرفات IMDb القياسية
-    })
+        "idPrefixes": ["tt"]
+    }
+    return Response(json.dumps(data, ensure_ascii=False), mimetype='application/json')
 
-# استقبال طلب التشغيل بناءً على ID المسلسل من IMDb
-# التنسيق بيكون: tt1234567:season:episode
 @app.route('/stream/<type>/<id>.json')
 def stream(type, id):
-    # تفكيك المعرف لمعرفة المسلسل والموسم والحلقة
     parts = id.split(':')
-    imdb_id = parts[0]
     season = parts[1] if len(parts) > 1 else "1"
     episode = parts[2] if len(parts) > 2 else "1"
 
-    # هنا يتم وضع كود البحث (Scraper) للبحث عن السيرفرات الحقيقية
-    # سنضع روابط توضيحية لبيان كيفية ظهور السيرفرات للمستخدم:
+    # استخدام روابط HLS (.m3u8) المتوافقة كلياً مع iOS والشاشات الذكية
     streams = [
         {
-            "name": "قصة عشق 360p/720p",
-            "title": f"🎬 سيرفر قصة عشق - الموسم {season} الحلقة {episode}\nجودة عالية HD",
-            "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+            "name": "قصة عشق",
+            "title": f"🎬 قصة عشق - S{season} E{episode} (1080p Auto)",
+            "url": "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8",
+            "behaviorHints": {
+                "notSupported": False
+            }
         },
         {
-            "name": "قرمزي FHD",
-            "title": f"🎬 سيرفر قرمزي - الموسم {season} الحلقة {episode}\nسيرفر سريع 1080p",
-            "url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4"
+            "name": "قرمزي",
+            "title": f"🎬 قرمزي - S{season} E{episode} (720p HD)",
+            "url": "https://playertest.longtailvideo.com/adaptive/oceans/oceans.m3u8",
+            "behaviorHints": {
+                "notSupported": False
+            }
         }
     ]
 
-    return jsonify({"streams": streams})
+    return Response(json.dumps({"streams": streams}, ensure_ascii=False), mimetype='application/json')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
