@@ -12,9 +12,9 @@ app.config['JSON_AS_ASCII'] = False
 def manifest():
     data = {
         'id': 'com.arabic.specific.servers',
-        'version': '2.0.0',
-        'name': 'السيرفرات العربية للمسلسلات التركية المخصصة',
-        'description': 'جلب سيرفرات رامو، قطاع الطرق، وتحت الأرض بدقة تامة',
+        'version': '2.2.0',
+        'name': 'السيرفرات العربية (قرمزي & قصة عشق)',
+        'description': 'جلب سيرفرات رامو، قطاع الطرق، وتحت الأرض بدقة',
         'resources': ['stream'],
         'types': ['series', 'movie'],
         'idPrefixes': ['tt'],
@@ -30,42 +30,47 @@ def stream(type, id):
 
     all_streams = []
 
-    # قاعدة بيانات دقيقة تربط كل رقم IMDb بمسلسله واسمه الصحيح في المواقع العربية
+    # ربط معرفات الـ IMDb بالأسماء الصحيحة لكل موقع
     shows_database = {
         'tt39222526': {
             'title': 'تحت الأرض',
-            'slug': 'تحت-الأرض'
+            'krmizi_slug': 'مسلسل-تحت-الأرض',
+            ' عشق_slug': 'تحت-الأرض'
         },
         'tt5175270': {
             'title': 'قطاع الطرق لن يحكموا العالم',
-            'slug': 'قطاع-الطرق-لن-يحكموا-العالم'
+            'krmizi_slug': 'مسلسل-قطاع-الطرق',
+            'عشق_slug': 'قطاع-الطرق-لن-يحكموا-العالم'
         },
         'tt11051886': {
             'title': 'رامو (Ramo)',
-            'slug': 'رامو'
+            'krmizi_slug': 'مسلسل-رامو',
+            'عشق_slug': 'رامو'
         }
     }
 
-    # التحقق مما إذا كان المسلسل المطلوب موجوداً في قائمتنا المخصصة
     if imdb_id in shows_database:
         show = shows_database[imdb_id]
         show_title = show['title']
-        show_slug = show['slug']
+        krmizi_slug = show['krmizi_slug']
+        
+        # 1. رابط موقع قرمزي
+        krmizi_url = f"https://krmizi.onl/episode/{krmizi_slug}-الحلقة-{episode}/"
+        
+        # 2. رابط موقع قصة عشق (بالصيغة المباشرة للصفحة)
+        asq_url = f"https://3s9q.net/series/{quote(show_title)}/episode-{episode}"
 
-        # تجهيز السيرفرات الخاصة بهذا المسلسل فقط
-        servers_list = [
-            ("المشغل الأول - Arab HD", f"https://krmizi.com/watch/{show_slug}-الحلقة-{episode}-arab-hd"),
-            ("المشغل الثاني - Turk", f"https://krmizi.com/watch/{show_slug}-الحلقة-{episode}-turk"),
-            ("المشغل الثالث - Dally", f"https://krmizi.com/watch/{show_slug}-الحلقة-{episode}-dally"),
-            ("قصة عشق - سيرفر رئيسي", f"https://3s9q.net/series/{show_slug}/episode-{episode}")
-        ]
-
-        for s_name, s_url in servers_list:
-            all_streams.append({
-                'name': f'🎬 {show_title} | {s_name}',
-                'title': f'الحلقة {episode} - مشاهدة مباشرة',
-                'url': s_url
-            })
+        all_streams.append({
+            'name': f'🎬 {show_title} | قرمزي (Krmizi)',
+            'title': f'الحلقة {episode} - صفحة السيرفرات',
+            'url': krmizi_url
+        })
+        
+        all_streams.append({
+            'name': f'❤️ {show_title} | قصة عشق (3s9q)',
+            'title': f'الحلقة {episode} - المشاهدة المباشرة',
+            'url': asq_url
+        })
 
     return Response(
         json.dumps({'streams': all_streams}, ensure_ascii=False),
