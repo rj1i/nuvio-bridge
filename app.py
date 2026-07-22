@@ -19,37 +19,44 @@ HEADERS = {
 }
 
 
-# 1. جلب اسم المسلسل
-def get_series_title(imdb_id):
+# 1. دالة جلب اسم المسلسل بالعربي حصراً لضمان توافقه مع قصة عشق وقرمزي
+def get_arabic_series_title(imdb_id):
+    # محاولة جلب الاسم بالعربي من TMDB أولاً
+    try:
+        tmdb_url = f'https://api.themoviedb.org/3/find/{imdb_id}?api_key=15d2aea6d22616440e08306727222858&external_source=imdb_id&language=ar'
+        res = requests.get(tmdb_url, headers=HEADERS, timeout=6)
+        if res.status_code == 200:
+            results = res.json().get('tv_results', [])
+            if results:
+                name_ar = results[0].get('name') or results[0].get('original_name', '')
+                if name_ar:
+                    return name_ar
+    except Exception as e:
+        print(f'TMDB Arabic Error: {e}')
+
+    # محاولة بديلة من Cinemeta
     try:
         url = f'https://v3-cinemeta.strem.fun/meta/series/{imdb_id}.json'
-        res = requests.get(url, headers=HEADERS, timeout=5)
+        res = requests.get(url, headers=HEADERS, timeout=6)
         if res.status_code == 200:
-            name = res.json().get('meta', {}).get('name', '')
+            meta = res.json().get('meta', {})
+            # بعض المتا در للغة العربية إن وجدت
+            name = meta.get('name', '')
             if name:
                 return name
     except Exception as e:
         print(f'Cinemeta Error: {e}')
 
-    try:
-        tmdb_url = f'https://api.themoviedb.org/3/find/{imdb_id}?api_key=15d2aea6d22616440e08306727222858&external_source=imdb_id&language=ar'
-        res = requests.get(tmdb_url, headers=HEADERS, timeout=5)
-        if res.status_code == 200:
-            results = res.json().get('tv_results', [])
-            if results:
-                return results[0].get('name') or results[0].get('original_name', '')
-    except Exception as e:
-        print(f'TMDB Error: {e}')
-
     return ''
 
 
-# 2. دالة استخراج السيرفرات المتقدمة من قصة عشق وقرمزي
+# 2. دالة البحث المتقدم في قصة عشق وقرمزي
 def scrape_servers(site_url, site_name, title, episode):
     streams = []
     if not title:
         return streams
     try:
+        # البحث باسم المسلسل العربي مع رقم الحلقة
         search_query = quote(f'{title} حلقة {episode}')
         search_url = f'{site_url}/?s={search_query}'
 
@@ -65,8 +72,8 @@ def scrape_servers(site_url, site_name, title, episode):
                     ep_res = requests.get(ep_url, headers=HEADERS, timeout=6)
                     ep_soup = BeautifulSoup(ep_res.text, 'html.parser')
 
-                    # أ) البحث عن أزرار أو قوائم المشغلات (مثل التي ظهرت في صورتك)
-                    server_buttons = ep_soup.select('.server-item, .play-btn, ul.servers-list li, .watch-servers a, .servers_list button')
+                    # البحث عن أزرار المشغلات أو الروابط المباشرة
+                    server_buttons = ep_soup.select('.server-item, .play-btn, ul.servers-list li, .watch-servers a, .servers_list button, .btn-server')
                     
                     if server_buttons:
                         for btn in server_buttons:
@@ -79,7 +86,7 @@ def scrape_servers(site_url, site_name, title, episode):
                                     'url': data_url,
                                 })
 
-                    # ب) البحث الاحتياطي عن جميع الـ iframes الموجودة في صفحة الحلقة
+                    # البحث الاحتياطي عن الـ iframes
                     iframes = ep_soup.find_all('iframe')
                     for idx, iframe in enumerate(iframes, start=1):
                         src = iframe.get('src', '') or iframe.get('data-src', '')
@@ -101,7 +108,7 @@ def scrape_servers(site_url, site_name, title, episode):
 def manifest():
     data = {
         'id': 'com.arabic.servers.bridge',
-        'version': '1.4.0',
+        'version': '1.5.0',
         'name': 'السيرفرات العربية (قصة عشق & قرمزي)',
         'description': 'جلب سيرفرات المشاهدة المباشرة للمسلسلات',
         'resources': ['stream'],
@@ -120,12 +127,11 @@ def stream(type, id):
     season = parts[1] if len(parts) > 1 else '1'
     episode = parts[2] if len(parts) > 2 else '1'
 
-    # جلب اسم المسلسل
-    series_title = get_series_title(imdb_id)
+    # جلب الاسم باللغة العربية حصراً لضمان نجاح البحث
+    series_title = get_arabic_series_title(imdb_id)
 
     all_streams = []
     if series_title:
-        # البحث في قرمزي وقصة عشق
         krmizi_streams = scrape_servers('https://krmizi.com', 'قرمزي', series_title, episode)
         qesset_streams = scrape_servers('https://3s9q.net', 'قصة عشق', series_title, episode)
         all_streams = krmizi_streams + qesset_streams
