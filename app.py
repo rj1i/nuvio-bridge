@@ -1,11 +1,13 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)  # للسماح بالتواصل من أي تطبيق مثل Nuvio
+CORS(app)
 
-# صفحة تعريف الإضافة الأساسية (Manifest)
 @app.route('/')
+def home():
+    return jsonify({"message": "Server is running successfully!"})
+
 @app.route('/manifest.json')
 def manifest():
     return jsonify({
