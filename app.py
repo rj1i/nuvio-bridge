@@ -18,20 +18,34 @@ HEADERS = {
 }
 
 
-# دالة تجلب اسم المسلسل الأصلي أو العربي باستخدام IMDb ID
+# 1. دالة جلب اسم المسلسل من المعرف (Cinemeta ثم TMDB كبديل)
 def get_series_title(imdb_id):
+    # محاولة جلب الاسم من Cinemeta
     try:
         url = f'https://v3-cinemeta.strem.fun/meta/series/{imdb_id}.json'
         res = requests.get(url, headers=HEADERS, timeout=5)
         if res.status_code == 200:
-            data = res.json()
-            return data.get('meta', {}).get('name', '')
+            name = res.json().get('meta', {}).get('name', '')
+            if name:
+                return name
     except Exception as e:
-        print(f'Error getting title: {e}')
+        print(f'Cinemeta Error: {e}')
+
+    # محاولة جلب الاسم بالعربي من TMDB
+    try:
+        tmdb_url = f'https://api.themoviedb.org/3/find/{imdb_id}?api_key=15d2aea6d22616440e08306727222858&external_source=imdb_id&language=ar'
+        res = requests.get(tmdb_url, headers=HEADERS, timeout=5)
+        if res.status_code == 200:
+            results = res.json().get('tv_results', [])
+            if results:
+                return results[0].get('name') or results[0].get('original_name', '')
+    except Exception as e:
+        print(f'TMDB Error: {e}')
+
     return ''
 
 
-# دالة البحث في قصة عشق
+# 2. دالة البحث في موقع قصة عشق
 def scrape_qesset(title, episode):
     streams = []
     if not title:
@@ -44,24 +58,20 @@ def scrape_qesset(title, episode):
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
             articles = soup.find_all('article')
-            for art in articles[:2]:
+            for art in articles[:3]:
                 link_tag = art.find('a')
                 if link_tag and 'href' in link_tag.attrs:
                     ep_url = link_tag['href']
                     ep_res = requests.get(ep_url, headers=HEADERS, timeout=5)
                     ep_soup = BeautifulSoup(ep_res.text, 'html.parser')
 
-                    # استخراج المشغلات والسيرفرات المدمجة
                     iframes = ep_soup.find_all('iframe')
                     for idx, iframe in enumerate(iframes, start=1):
                         src = iframe.get('src', '')
                         if src and 'http' in src:
                             streams.append({
                                 'name': f'قصة عشق #{idx}',
-                                'title': (
-                                    f'🎬 {title} - حلقة {episode}\nسيرفر'
-                                    f' مشاهدة {idx}'
-                                ),
+                                'title': f'🎬 قصة عشق | {title} - حلقة {episode} (سيرفر {idx})',
                                 'url': src,
                             })
     except Exception as e:
@@ -69,7 +79,7 @@ def scrape_qesset(title, episode):
     return streams
 
 
-# دالة البحث في قرمزي
+# 3. دالة البحث في موقع قرمزي
 def scrape_krmizi(title, episode):
     streams = []
     if not title:
@@ -82,7 +92,7 @@ def scrape_krmizi(title, episode):
         if res.status_code == 200:
             soup = BeautifulSoup(res.text, 'html.parser')
             articles = soup.find_all('article')
-            for art in articles[:2]:
+            for art in articles[:3]:
                 link_tag = art.find('a')
                 if link_tag and 'href' in link_tag.attrs:
                     ep_url = link_tag['href']
@@ -95,10 +105,7 @@ def scrape_krmizi(title, episode):
                         if src and 'http' in src:
                             streams.append({
                                 'name': f'قرمزي #{idx}',
-                                'title': (
-                                    f'🎬 {title} - حلقة {episode}\nسيرفر'
-                                    f' مشاهدة {idx}'
-                                ),
+                                'title': f'🎬 قرمزي | {title} - حلقة {episode} (سيرفر {idx})',
                                 'url': src,
                             })
     except Exception as e:
@@ -111,7 +118,7 @@ def scrape_krmizi(title, episode):
 def manifest():
     data = {
         'id': 'com.arabic.servers.bridge',
-        'version': '1.1.0',
+        'version': '1.3.0',
         'name': 'السيرفرات العربية (قصة عشق & قرمزي)',
         'description': 'جلب سيرفرات المشاهدة المباشرة للمسلسلات',
         'resources': ['stream'],
@@ -130,26 +137,16 @@ def stream(type, id):
     season = parts[1] if len(parts) > 1 else '1'
     episode = parts[2] if len(parts) > 2 else '1'
 
-    # 1. جلب اسم المسلسل من IMDb ID
+    # جلب عنوان المسلسل
     series_title = get_series_title(imdb_id)
 
-    # 2. البحث عن السيرفرات في قصة عشق وقرمزي
-    qesset_streams = scrape_qesset(series_title, episode)
-    krmizi_streams = scrape_krmizi(series_title, episode)
+    all_streams = []
+    if series_title:
+        qesset_streams = scrape_qesset(series_title, episode)
+        krmizi_streams = scrape_krmizi(series_title, episode)
+        all_streams = qesset_streams + krmizi_streams
 
-    all_streams = qesset_streams + krmizi_streams
-
-    # في حال عدم العثور على روابط حقيقية للمسلسل المختار
-    if not all_streams:
-        all_streams = [{
-            'name': 'تنبيه',
-            'title': (
-                f'⚠️ لم يتم العثور على حلقة {episode} لمسلسل "{series_title}" في'
-                ' قصة عشق أو قرمزي'
-            ),
-            'url': 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-        }]
-
+    # إرجاع السيرفرات المتوفرة (أو قائمة فارغة في حال عدم العثور على نتائج)
     return Response(
         json.dumps({'streams': all_streams}, ensure_ascii=False),
         mimetype='application/json',
