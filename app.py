@@ -12,8 +12,8 @@ app.config['JSON_AS_ASCII'] = False
 def manifest():
     data = {
         'id': 'com.arabic.specific.servers',
-        'version': '1.9.0',
-        'name': 'السيرفرات العربية للمسلسلات التركية',
+        'version': '2.0.0',
+        'name': 'السيرفرات العربية للمسلسلات التركية المخصصة',
         'description': 'جلب سيرفرات رامو، قطاع الطرق، وتحت الأرض بدقة تامة',
         'resources': ['stream'],
         'types': ['series', 'movie'],
@@ -30,26 +30,42 @@ def stream(type, id):
 
     all_streams = []
 
-    # ربط دقيق لكل مسلسل (سواء برمز IMDb أو سيتم التعرف عليه من خلال النظام)
-    # سنقوم بتعريف المسلسلات الثلاثة وروابطها التركية والعربية الخاصة بكل مسلسل على حدة:
-    
-    # يمكنك استبدال 'tt_ramo', 'tt_edho', 'tt_underground' برموز الـ IMDb الحقيقية للمسلسلات إذا عرفتها،
-    # أو سيعتمد الكود على مطابقة الـ ID المرفق من Nuvio:
-    
-    shows_db = {
-        # مثال لتخصيص كل مسلسل بروابطه الحصرية:
-        # "tt1234567": {
-        #     "title": "رامو (Ramo)",
-        #     "slug": "ramo"
-        # }
+    # قاعدة بيانات دقيقة تربط كل رقم IMDb بمسلسله واسمه الصحيح في المواقع العربية
+    shows_database = {
+        'tt39222526': {
+            'title': 'تحت الأرض',
+            'slug': 'تحت-الأرض'
+        },
+        'tt5175270': {
+            'title': 'قطاع الطرق لن يحكموا العالم',
+            'slug': 'قطاع-الطرق-لن-يحكموا-العالم'
+        },
+        'tt11051886': {
+            'title': 'رامو (Ramo)',
+            'slug': 'رامو'
+        }
     }
 
-    # بما أننا نريد فصل كل مسلسل عن الآخر تماماً بناءً على ما يفتحه المستخدم في Nuvio:
-    # سنقوم بإنشاء خريطة ذكية تفحص الـ IMDb ID أو تعرض المسلسل حسب الطلب، 
-    # لحين تزويدي برموز الـ IMDb التركية الخاصة بهذ المسلسلات الثلاثة، قمنا بضبط الكود بحيث يعطيك الخيار الصحيح.
-    
-    # هل تملك معرفات الـ IMDb الخاصة بـ (رامو، قطاع الطرق، تحت الأرض)؟ 
-    # بمجرد وضعها هنا، لن تظهر سيرفرات مسلسل في مسلسل آخر أبداً.
+    # التحقق مما إذا كان المسلسل المطلوب موجوداً في قائمتنا المخصصة
+    if imdb_id in shows_database:
+        show = shows_database[imdb_id]
+        show_title = show['title']
+        show_slug = show['slug']
+
+        # تجهيز السيرفرات الخاصة بهذا المسلسل فقط
+        servers_list = [
+            ("المشغل الأول - Arab HD", f"https://krmizi.com/watch/{show_slug}-الحلقة-{episode}-arab-hd"),
+            ("المشغل الثاني - Turk", f"https://krmizi.com/watch/{show_slug}-الحلقة-{episode}-turk"),
+            ("المشغل الثالث - Dally", f"https://krmizi.com/watch/{show_slug}-الحلقة-{episode}-dally"),
+            ("قصة عشق - سيرفر رئيسي", f"https://3s9q.net/series/{show_slug}/episode-{episode}")
+        ]
+
+        for s_name, s_url in servers_list:
+            all_streams.append({
+                'name': f'🎬 {show_title} | {s_name}',
+                'title': f'الحلقة {episode} - مشاهدة مباشرة',
+                'url': s_url
+            })
 
     return Response(
         json.dumps({'streams': all_streams}, ensure_ascii=False),
